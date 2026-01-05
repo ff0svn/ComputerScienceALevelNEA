@@ -1,0 +1,348 @@
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "bcrypt.h"
+
+#define twoP32 4294967296
+
+// Cost can vary from 4 - 31. The password can be a maximum of 72 bytes
+// Returns data in the form:
+//         $2a$[cost]$[22 character salt][31 character hash]
+char* bcrypt(uint_least8_t cost, char salt[16],  struct charArr* password){
+
+    struct state state = eksBlowfishSetup(cost, salt, *password);
+
+    // Note ctext is 24 bytes long, or 3 sets of 8 bytes
+    char ctext[25] = "OrpheanBeholderScryDoubt";
+    for (int _ = 0; _ < 64; _++){
+        ((uint64_t*) ctext)[0] = blowfishEncrypt(state, ((uint64_t*) ctext)[0]);
+        ((uint64_t*) ctext)[1] = blowfishEncrypt(state, ((uint64_t*) ctext)[1]);
+        ((uint64_t*) ctext)[2] = blowfishEncrypt(state, ((uint64_t*) ctext)[2]);
+    }
+
+    return concatenate(cost, salt, ctext);
+}
+
+struct state eksBlowfishSetup(uint_least8_t cost, char salt[16], struct charArr key){
+    struct state state = initState();
+
+    // Limit the size of the key to the max possible
+    if (key.size > 72){
+        // If this were a pure C implementation I would also reallocate
+        // the memory to remove the greater bytes. But as this is an 
+        // implementation to be used within python, and this is a pointer to
+        // a python string (which are immutable), I merely change the representation
+        // of the size of the key. (As python's GC will deal with the string in it's own way)
+        key.size = 72;
+    }
+
+    struct charArr saltArr = {.data = salt,
+                              .size = 16};
+
+    state = expandKey(state, salt, key);
+
+    char* emptyPointer = calloc(16, sizeof(char)); // Initialise 16 empty bytes to pass to expandKey
+    int numIteration = 2 << (cost - 1); // Calculates 2^cost
+    for(int i = 0; i < numIteration; i++){
+        state = expandKey(state, emptyPointer, key);
+        state = expandKey(state, emptyPointer, saltArr);
+    }
+
+    return state;
+}
+
+struct state expandKey(struct state state, char salt[16], struct charArr key){
+    {char* buffer = malloc(4); // buffer to allow cyclic access to key
+    for (int n = 0; n < 18; n++){
+        for (int i = 0; i < 4; i++) buffer[i] = key.data[(n+i) % key.size];
+
+        state.P[n] = state.P[n] ^ *((uint32_t*) buffer);
+        
+    } free(buffer);}
+
+    uint64_t HalvedSalt[2];
+    HalvedSalt[0] = ((uint64_t*) salt)[0];
+    HalvedSalt[1] = ((uint64_t*) salt)[1];
+
+    uint64_t buffer = 0;
+
+    for (int n = 0; n < 9; n++){
+        buffer = buffer ^ HalvedSalt[n % 2];
+
+        buffer = blowfishEncrypt(state, buffer);
+        state.P[2*n] = (uint32_t) buffer;
+        state.P[2*n + 1] = (uint32_t) (buffer >> 4);
+    }
+
+    for (int i = 0; i < 4; i++){
+        for (int n = 0; n < 128; n++){
+            buffer = blowfishEncrypt(state, buffer ^ HalvedSalt[n % 2]);
+            
+            state.S[i][2*n] = (uint32_t) buffer;
+            state.S[i][2*n + 1] = (uint32_t) (buffer >> 4);
+        }
+    }
+
+    return state;
+}
+
+uint64_t blowfishEncrypt(struct state state, uint64_t input){
+    uint32_t L = (uint32_t)input;
+    uint32_t R = (uint32_t) (input >> 32);
+
+    for (int i = 0; i < 16; i++){
+        L = L ^ state.P[i];
+        R = f(state, R) ^ R;
+
+        // Swap the values of L and R
+        L = L + R;
+        R = L - R;
+        L = L - R;
+    }
+
+    // Swap the values of L and R
+    L = L + R;
+    R = L - R;
+    L = L - R;
+
+    R = R ^ state.P[16];
+    L = L ^ state.P[17];
+
+    // return L concatenated with R
+    return L + ((uint64_t)(R) << 32);
+}
+
+uint32_t f(struct state state, uint32_t x){
+    uint_least8_t a = x >> 24;
+    uint_least8_t b = (x << 8) >> 24;
+    uint_least8_t c = (x << 8) >> 24;
+    uint_least8_t d = (x << 8) >> 24;
+
+    return ((((state.S[0][a] + state.S[1][b]) % twoP32) ^ state.S[2][c]) + state.S[3][d]) % twoP32;
+}
+
+// Converts the text into the form
+// $2a$[cost]$[22 character salt][31 character hash]
+char* concatenate(uint_least8_t cost, char salt[16], char* ctext){
+
+    char* returnString = malloc(61);
+    char* hashIdentifier = "$2a$";
+    char* costAsStr = malloc(3);
+
+    // Copy the identifier. Have to use memcpy instead of strcpy to avoid copying the NUL char
+    memcpy(returnString, hashIdentifier, 4);
+
+    // Copy the cost into the return string, and free the memory used to store the value
+    // If the cost has a value less than 10, it is padded with a leading 0
+    snprintf(costAsStr, 3, "%.2d", cost);
+    memcpy(returnString + 4, costAsStr, 2); 
+    free(costAsStr);
+
+    // Copy the $ after the cost (can reuse hashIdentifier, as its first char is '$')
+    memcpy(returnString + 6, hashIdentifier, 1);
+
+    // Copy the salt into the returnString, this can be done 3 chars at
+    // a time as in B64, 3 bytes corresponds to 4 chars. (8 * 3 = 24 = 4 * 6).
+    char* buffer;
+    for(int i = 0; i < 5; i += 1){
+        buffer = threeBytesToB64(salt + 3*i);
+        memcpy(returnString + 7 + 4*i, buffer, 4);
+
+        free(buffer);
+    }
+
+    // Copy the final value of salt with some null value to fill up the input to 3 bytes
+    char* finalSaltChar = calloc(3, sizeof(char));
+    memcpy(finalSaltChar, salt + 15, 1);
+
+    // Get the final char in B64, but only copy the first 2 bytes, to get up to 22 chars 
+    buffer = threeBytesToB64(finalSaltChar);
+    memcpy(returnString + 7 + 20, buffer, 2);
+
+    free(finalSaltChar); free(buffer);
+
+    printf("\n");
+
+    // Copy the 31 character hash, basically the same as the salt
+    for(int i = 0; i < 8; i += 1){
+        buffer = threeBytesToB64(ctext + 3*i);
+        if (i == 7){
+            // For some reason bcrypt cuts off the last character of the encoded value
+            // I can't work out why on earth this would be done, but its in the spec, 
+            // so I'm reproducing it here. 
+            memcpy(returnString + 29 + 4*i, buffer, 3);
+        } else {
+          memcpy(returnString + 29 + 4*i, buffer, 4);
+        }
+
+        free(buffer);
+    }
+
+    returnString[60] = '\0';
+
+    return returnString;    
+}
+
+char* threeBytesToB64(char* input){
+    char* base64Convertion = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    char* returnValue = malloc(4);
+
+    uint32_t inputAsInt = ((*((uint32_t*) input)) << 8) >> 8;
+
+    //printf("%06X: ", inputAsInt);
+
+    returnValue[3] = base64Convertion[(inputAsInt << 8) >> 26];
+    returnValue[2] = base64Convertion[(inputAsInt << 14) >> 26];
+    returnValue[1] = base64Convertion[(inputAsInt << 20) >> 26];
+    returnValue[0] = base64Convertion[(inputAsInt << 26) >> 26];
+
+    //printf("%c, %c, %c, %c\n", returnValue[0], returnValue[1], returnValue[2], returnValue[3]);
+    
+    return returnValue;
+}
+
+// Fill the values of P and S arrays with the digits of PI
+// Value of PI obtained from https://pi2e.ch/blog/2017/03/10/pi-digits-download/
+struct state initState(){
+    struct state state = {
+
+        .P = {   0x243f6a88,0x85a308d3,0x13198a2e,0x03707344,0xa4093822,0x299f31d0,0x082efa98,0xec4e6c89,0x452821e6, 
+                 0x38d01377,0xbe5466cf,0x34e90c6c,0xc0ac29b7,0xc97c50dd,0x3f84d5b5,0xb5470917,0x9216d5d9,0x8979fb1b},
+
+        .S = { 
+                {0xd1310ba6,0x98dfb5ac,0x2ffd72db,0xd01adfb7,0xb8e1afed,0x6a267e96,0xba7c9045,0xf12c7f99,
+                 0x24a19947,0xb3916cf7,0x0801f2e2,0x858efc16,0x636920d8,0x71574e69,0xa458fea3,0xf4933d7e,
+                 0x0d95748f,0x728eb658,0x718bcd58,0x82154aee,0x7b54a41d,0xc25a59b5,0x9c30d539,0x2af26013,
+                 0xc5d1b023,0x286085f0,0xca417918,0xb8db38ef,0x8e79dcb0,0x603a180e,0x6c9e0e8b,0xb01e8a3e,
+                 0xd71577c1,0xbd314b27,0x78af2fda,0x55605c60,0xe65525f3,0xaa55ab94,0x57489862,0x63e81440,
+                 0x55ca396a,0x2aab10b6,0xb4cc5c34,0x1141e8ce,0xa15486af,0x7c72e993,0xb3ee1411,0x636fbc2a,
+                 0x2ba9c55d,0x741831f6,0xce5c3e16,0x9b87931e,0xafd6ba33,0x6c24cf5c,0x7a325381,0x28958677,
+                 0x3b8f4898,0x6b4bb9af,0xc4bfe81b,0x66282193,0x61d809cc,0xfb21a991,0x487cac60,0x5dec8032,
+                 0xef845d5d,0xe98575b1,0xdc262302,0xeb651b88,0x23893e81,0xd396acc5,0x0f6d6ff3,0x83f44239,
+                 0x2e0b4482,0xa4842004,0x69c8f04a,0x9e1f9b5e,0x21c66842,0xf6e96c9a,0x670c9c61,0xabd388f0,
+                 0x6a51a0d2,0xd8542f68,0x960fa728,0xab5133a3,0x6eef0b6c,0x137a3be4,0xba3bf050,0x7efb2a98,
+                 0xa1f1651d,0x39af0176,0x66ca593e,0x82430e88,0x8cee8619,0x456f9fb4,0x7d84a5c3,0x3b8b5ebe,
+                 0xe06f75d8,0x85c12073,0x401a449f,0x56c16aa6,0x4ed3aa62,0x363f7706,0x1bfedf72,0x429b023d,
+                 0x37d0d724,0xd00a1248,0xdb0fead3,0x49f1c09b,0x075372c9,0x80991b7b,0x25d479d8,0xf6e8def7,
+                 0xe3fe501a,0xb6794c3b,0x976ce0bd,0x04c006ba,0xc1a94fb6,0x409f60c4,0x5e5c9ec2,0x196a2463,
+                 0x68fb6faf,0x3e6c53b5,0x1339216d,0x5d98979f,0xb1bd1310,0xba698dfb,0x5ac2ffd7,0x2d9b2eb3,
+                 0xb52ec6f6,0xdfc511f9,0xb30952cc,0xc814544a,0xf5ebd09b,0xee3d004d,0xe334afd6,0x60f28071,
+                 0x92e4bb3c,0x0cba8574,0x5c8740fd,0x20b5f39b,0x9d3fbdb5,0x579c0bd1,0xa60320ad,0x6a100c64,
+                 0x02c72796,0x79f25fef,0xb1fa3cc8,0xea5e9f8d,0xb3222f83,0xc7516dff,0xd616b152,0xf501ec8a,
+                 0xd0552ab3,0x23db5faf,0xd2387605,0x3317b483,0xe00df829,0xe5c57bbc,0xa6f8ca01,0xa87562ed,
+                 0xf1769dbd,0x542a8f62,0x87effc3a,0xc6732c68,0xc4f55736,0x95b27b0b,0xbca58c8e,0x1ffa35db,
+                 0x8f011a01,0x0fa3d98f,0xd2183b84,0xafcb56c2,0xdd1d35b9,0xa53e479b,0x6f84565d,0x28e49bc4,
+                 0xbfb9790e,0x1ddf2daa,0x4cb7e336,0x2fb1341c,0xee4c6e8e,0xf20cada3,0x6774c01d,0x07e9efe2,
+                 0xbf11fb49,0x5dbda4da,0xe909198e,0xaad8e716,0xb93d5a0d,0x08ed1d0a,0xfc725e08,0xe3c5b2f8,
+                 0xe7594b78,0xff6e2fbf,0x2122b648,0x888b8129,0x00df01c4,0xfad5ea06,0x88fc31cd,0x1cff191b,
+                 0x3a8c1ad2,0xf2f2218b,0xe0e1777e,0xa752dfe8,0xb021fa1e,0x5a0cc0fb,0x56f74e81,0x8acf3d6c,
+                 0xe89e299b,0x4a84fe0f,0xd13e0b77,0xcc43b81d,0x2ada8d91,0x65fa2668,0x09577059,0x3cc73142,
+                 0x11a1477e,0x6ad20657,0x7b5fa86c,0x75442f5f,0xb9d35cfe,0xbcdaf0c7,0xb3e89a0d,0x6411bd3a,
+                 0xe1e7e490,0x0250e2d2,0x071b35e2,0x26800bb5,0x7b8e0af2,0x464369bf,0x009b91e5,0x563911d5,
+                 0x9dfa6aa7,0x8c14389d,0x95a537f2,0x07d5ba20,0x2e5b9c58,0x32603766,0x295cfa91,0x1c819684,
+                 0xe734a41b,0x3472dca7,0xb14a94a1,0xb5100529,0xa532915d,0x60f573fb,0xc9bc6e42,0xb60a4768,
+                 0x1e674000,0x8ba6fb55,0x71be91ff,0x296ec6b2,0xa0dd915b,0x6636521e,0x7b9f9b6f,0xf34052ec},
+
+                {0x58556645,0x3b02d5da,0x99f8fa10,0x8ba47996,0xe85076a4,0xb7a70e9b,0x5b32944d,0xb75092ec,
+                 0x4192623a,0xd6ea6b04,0x9a7df7d9,0xcee60b88,0xfedb266e,0xcaa8c716,0x99a17ff5,0x664526cc,
+                 0x2b19ee11,0x93602a57,0x5094c29a,0x0591340e,0x4183a3e3,0xf54989a5,0xb429d656,0xb8fe4d69,
+                 0x9f73fd6a,0x1d29c07e,0xfe830f54,0xd2d38e6f,0x0255dc14,0xcdd20868,0x470eb266,0x382e9c60,
+                 0x21ecc5e0,0x9686b3f3,0xebaefc93,0xc9718146,0xb6a70a16,0x87f35845,0x2a0e286b,0x79c5305a,
+                 0xa5007373,0xe07841c7,0xfdeae5c8,0xe7d44ec5,0x716f2b8b,0x03ada37f,0x0500c0df,0x01c1f040,
+                 0x200b3ffa,0xe0cf51a3,0xcb574b22,0x5837a58d,0xc0921bdd,0x19113f97,0xca92ff69,0x43247732,
+                 0x2f547013,0xae5e5813,0x7c2dadcc,0x8b576349,0xaf3dda7a,0x94461460,0xfd0030ee,0xcc8c73ea,
+                 0x4751e41e,0x238cd993,0xbea0e2f3,0x280bba11,0x83eb3314,0xe548b384,0xf6db9086,0xf420d03f,
+                 0x60a04bf2,0xcb812902,0x4977c795,0x679b072b,0xcaf89afd,0xe9a771fd,0x9930810b,0x38bae12d,
+                 0xccf3f2e5,0x512721f2,0xe6b71245,0x01adde69,0xf84cd877,0xa5847187,0x408da17b,0xc9f9abce,
+                 0x94b7d8ce,0xc7aec3ad,0xb851dfa6,0x3094366c,0x464c3d2e,0xf1c18473,0x215d908d,0xd433b372,
+                 0x4c2ba161,0x2a14d432,0xa65c4515,0x09400021,0x33ae4dd7,0x1dff89e1,0x0314e558,0x1ac77d65,
+                 0xf11199b0,0x43556f1d,0x7a3c76b3,0xc11183b5,0x924a509f,0x28fe6ed9,0x7f1fbfa9,0xebabf2c1,
+                 0xe153c6e8,0x6e34570e,0xae96fb18,0x60e5e0a5,0xa3e2ab37,0x71fe71c4,0xe3d06fa2,0x965dcb99,
+                 0x9e71d0f8,0x03e89d65,0x266c8252,0xe4cc9789,0xc10b36ac,0x6150eba9,0x4e2ea78a,0x5fc3c531,
+                 0xe0a2df4f,0x2f74ea73,0x61d2b3d1,0x939260f1,0x9c279605,0x223a708f,0x71312b6e,0xbadfe6ee,
+                 0xac31f66e,0x3bc4595a,0x67bc883b,0x17f37d10,0x18cff28c,0x332ddefb,0xe6c5aa56,0x55821856,
+                 0x8ab9802e,0xecea50fd,0xb2f953b2,0xaef7dad5,0xb6e2f841,0x521b6282,0x9076170e,0xcdd47756,
+                 0x19f15101,0x3cca830e,0xb61bd960,0x334fe1ea,0xa0363cfb,0x5735c904,0xc70a239d,0x59e9e0bc,
+                 0xbaade14e,0xecc86bc6,0x0622ca79,0xcab5cabb,0x2f3846e6,0x48b1eaf1,0x9bdf0caa,0x02369b96,
+                 0x55abb504,0x0685a323,0xc2ab4b33,0x19ee9d5c,0x021b8f79,0xb540b198,0x75fa0999,0x5f7997e6,
+                 0x23d7da8f,0x837889a9,0x7e32d771,0x1ed935f1,0x66812810,0xe358829c,0x7e61fd69,0x6dedfa17,
+                 0x858ba995,0x7f584a51,0xb2272639,0xb83c3ff1,0xac24696c,0xdb30aeb5,0x32e30548,0xfd948e46,
+                 0xdbc31285,0x8ebf2ef3,0x4c6ffeaf,0xe28ed61e,0xe7c3c735,0xd4a14d9e,0x864b7e34,0x2105d142,
+                 0x03e13e04,0x5eee2b6a,0x3aaabead,0xb6c4f15f,0xacb4fd0c,0x742f442e,0xf6abbb56,0x54f3b1d4,
+                 0x1cd2105d,0x81e799e8,0x6854dc7e,0x44b476a3,0xd816250c,0xf62a1f25,0xb8d2646f,0xc8883a0c,
+                 0x1c7b6a37,0xf1524c36,0x9cb74924,0x7848a0b5,0x692b2850,0x95bbf00a,0xd19489d1,0x462b1742,
+                 0x3820e005,0x8428d2a0,0xc55f5ea1,0xdadf43e2,0x33f70613,0x372f0928,0xd937e41d,0x65fecf16,
+                 0xc223bdb7,0xcde3759c,0xbee74604,0x085f2a7c,0xe77326ea,0x60780841,0x9f8509ee,0x8efd8556,
+                 0x1d99735a,0x969a7aac,0x50c06c25,0xa04abfc8,0x00bcadc9,0xe447a2ec,0x3453484f,0xdd567050,
+                 0xe1e9ec9d,0xb73dbd31,0x05588cd6,0x75fda79e,0x3674340c,0x5c434657,0x13e38d83,0xd28f89ef},
+                
+                {0x16dff201,0x53e21e78,0xfb03d4ae,0x6e39f2bd,0xb83adf7e,0x93d5a689,0x48140f7f,0x64c261c9,
+                 0x46929344,0x11520f77,0x602d4f7b,0xcf46b2ed,0x4a20068d,0x40824713,0x320f46a4,0x3b7d4b75,
+                 0x00061af1,0xe39f62e9,0x72445461,0x4214f74b,0xf8b88404,0xd95fc1d9,0x6b591af7,0x0f4ddd36,
+                 0x6a02f45b,0xfbc09ec0,0x3bd97857,0xfac6dd03,0x1cb85049,0x6eb27b35,0x5fd3941d,0xa2547e6a,
+                 0xbca0a9a2,0x85078255,0x30429f40,0xa2c86dae,0x9b66dfb6,0x8dc1462d,0x74869006,0x80ec0a42,
+                 0x7a18dee4,0xf3ffea2e,0x887ad8cb,0x58ce0067,0xaf4d6b6a,0xace1e7cd,0x3375fecc,0xe78a3994,
+                 0x06b2a422,0x0fe9e35d,0x9f385b9e,0xe39d7ab3,0xb124e8b1,0xdc9faf74,0xb6d18562,0x6a36631e,
+                 0xae397b23,0xa6efa74d,0xd5b43326,0x841e7f7c,0xa7820fbf,0xb0af54ed,0x8feb3974,0x54056acb,
+                 0xa4895275,0x5533a3a2,0x0838d87f,0xe6ba9b7d,0x096954b5,0x5a867bca,0x1159a58c,0xca929639,
+                 0x9e1db33a,0x62a4a563,0xf3125f95,0xef47e1c9,0x029317cf,0xdf8e8020,0x4272f708,0x0bb155c0,
+                 0x5282ce39,0x5c11548e,0x4c66d224,0x8c1133fc,0x70f86dc0,0x7f9c9ee4,0x1041f0f4,0x04779a45,
+                 0xd886e173,0x25f51ebd,0x59bc0d1f,0x2bcc18f4,0x11135642,0x57b78346,0x02a9c60d,0xff8e8a31,
+                 0xf636c1b0,0xe12b4c20,0x2e1329ea,0xf664fd1c,0xad181156,0xb2395e03,0x33e92e13,0xb240b62e,
+                 0xebeb9228,0x5b2a20ee,0x6ba0d99d,0xe720c8c2,0xda2f728d,0x01278459,0x5b794fd6,0x47d0862e,
+                 0x7ccf5f05,0x449a36f8,0x77d48fac,0x39dfd27f,0x33e8d1e0,0xa4763419,0x92eff743,0xa6f6eabf,
+                 0x4f8fd37a,0x812dc60a,0x1ebddf89,0x91be14cd,0xb6e6b0dc,0x67b55106,0xd672c372,0x765d43bd,
+                 0xcd0e804f,0x1290dc7c,0xc00ffa3b,0x5390f926,0x90fed0b6,0x67b9ffbc,0xedb7d9ca,0x091cf0bd,
+                 0x9155ea3b,0xb132f885,0x15bad247,0xb9479bf7,0x63bd6eb3,0x7392eb3c,0xc1159798,0x026e297f,
+                 0x42e312d6,0x842ada7c,0x66a2b3b1,0x2754ccc7,0x82ef11c6,0xa124237b,0x79251e70,0x6a1bbe64,
+                 0xbfb63501,0xa6b10181,0x1caedfa3,0xd25bdd8e,0x2e1c3c94,0x44216590,0xa121386d,0x90cec6ed,
+                 0x5abea2a6,0x4af674ed,0xa86a85fb,0xebfe9886,0x4e4c3fe9,0xdbc8057f,0x0f7c0866,0x0787bf86,
+                 0x003604dd,0x1fd8346f,0x6381fb07,0x745ae04d,0x736fccc8,0x3426b33f,0x01eab71b,0x08041873,
+                 0xc005e5f7,0x7a057beb,0xde8ae245,0x5464299b,0xf582e614,0xe58f48ff,0x2ddfda2f,0x474ef388,
+                 0x789bdc25,0x366f9c3c,0x8b38e74b,0x475f2554,0x6fcd9b97,0xaeb26618,0xb1ddf848,0x46a0e799,
+                 0x15f95e24,0x66e598e2,0x0b457708,0xcd55591c,0x902de4cb,0x90bace1b,0xb8205d01,0x1a862487,
+                 0x574a99eb,0x77f19b6e,0x0a9dc096,0x62d09a1c,0x4324633e,0x85a1f020,0x9f0be8c4,0xa99a0251,
+                 0xd6efe101,0xab93d1d0,0xba5a4dfa,0x186f20f2,0x868f169d,0xcb7da835,0x73906fea,0x1e2ce9b4,
+                 0xfcd7f525,0x0115e01a,0x70683faa,0x002b5c40,0xde6d0279,0xaf88c277,0x73f8641c,0x3604c066,
+                 0x1a806b5f,0x0177a28c,0x0f586e00,0x06058aa3,0x0dc7d621,0x1e69ed72,0x338ea635,0x3c2dd94c,
+                 0x2c21634b,0xbcbee569,0x0bcb6dee,0xbfc7da1c,0xe591d766,0xf05e4094,0xb7c01883,0x9720a3d7,
+                 0xc927c248,0x6e3725f7,0x24d9db91,0xac15bb4d,0x39eb8fce,0xd5455780,0x8fca5b5d,0x83d7cd34,
+                 0xdad0fc41,0xe50ef5eb,0x161e6f8a,0x28514d96,0xc51133c6,0xfd5c7e75,0x6e14ec43,0x62abfced}, 
+
+                {0xdc6c837d,0x79a32349,0x26382126,0x70efa8e4,0x06000e03,0xa39ce37d,0x3faf5cfa,0xbc277375,
+                 0xac52d1b5,0xcb0679e4,0xfa33742d,0x38227409,0x9bc9bbed,0x5118e9db,0xf0f7315d,0x62d1c7ec,
+                 0x700c47bb,0x78c1b6b2,0x1a19045b,0x26eb1be6,0xa366eb45,0x748ab2fb,0xc946e79c,0x6a376d26,
+                 0x549c2c85,0x30ff8ee4,0x68dde7dd,0x5730a1d4,0xcd04dc62,0x939bbdba,0x9ba4650a,0xc9526e8b,
+                 0xe5ee304a,0x1fad5f06,0xa2d519a6,0x3ef8ce29,0xa86ee22c,0x089c2b84,0x3242ef6a,0x51e03aa9,
+                 0xcf2d0a48,0x3c061ba9,0xbe96a4d8,0xfe51550b,0xa645bd62,0x826a2f9a,0x73a3ae14,0xba99586e,
+                 0xf5562e9c,0x72fefd3f,0x752f7da3,0xf046f697,0x7fa0a598,0x0e4a9158,0x7b086019,0xb09e6ad3,
+                 0xb3ee593e,0x990fd5a9,0xe34d7972,0xcf0b7d90,0x22b8b519,0x6d5ac3a0,0x17da67dd,0x1cf3ed67,
+                 0xc7d2d281,0xf9f25cfa,0xdf2b89b5,0xad6b4725,0xa88f54ce,0x029ac71e,0x019a5e64,0x7b0acfde,
+                 0xd93fa9be,0x8d3c48d2,0x83b57ccf,0x8d566297,0x9132e287,0x85f0191e,0xd756055f,0x7960e44e,
+                 0x3d35e8c1,0x5056dd48,0x8f46dba0,0x3a161250,0x564f0bdc,0x3eb9e153,0xc9057a29,0x7271aeca,
+                 0x93a072a1,0xb3f6d9b1,0xe6321f5f,0x59c66fb2,0x6dcf3197,0x533d928b,0x155fdf50,0x35634828,
+                 0xaba3cbb2,0x8517711c,0x20ad9f8a,0xbcc5167c,0xcad925f4,0xde817513,0x830dc8e3,0x79d58629,
+                 0x320f991e,0xa7a90c2f,0xb3e7bce5,0x121ce647,0x74fbe32a,0x8b6e37ec,0x3293d464,0x8de53696,
+                 0x413e680a,0x2ae0810d,0xd6db2246,0x9852dfd0,0x9072166b,0x39a460a6,0x445c0dd5,0x86cdecf1,
+                 0xc20c8ae5,0xbbef7dd1,0xb588d40c,0xcd2017f6,0xbb4e3bbd,0xda26a7e3,0xa59ff453,0xe350a44b,
+                 0xcb4cdd57,0x2eacea8f,0xa6484bb8,0xd6612aeb,0xf3c6f47d,0x29be4635,0x42f5d9ea,0xec2771bf,
+                 0x64e63707,0x40e0d8de,0x75b1357f,0x8721671a,0xf537d5d4,0x040cb084,0xeb4e2cc3,0x4d2466a0,
+                 0x115af84e,0x1b004289,0x5983a1d0,0x6b89fb4c,0xe6ea0486,0xf3f3b823,0x520ab820,0x11a1d4b2,
+                 0x77227f86,0x11560b1e,0x7933fdcb,0xb3a792b3,0x44525bda,0x08839e15,0x1ce794b2,0xf32c9b7a,
+                 0x01fbac9e,0x01cc87eb,0xcc7d1f6c,0xf0111c3a,0x1e8aac71,0xa908749d,0x44fbd9ad,0x0dadecbd,
+                 0x50ada380,0x339c32ac,0x69136678,0xdf9317ce,0x0b12b4ff,0x79e59b74,0x3f5bb3af,0x2d519ff2,
+                 0x7d9459cb,0xf97222c1,0x5e6fc2a0,0xf91fc719,0xb941525f,0xae59361c,0xeb69cebc,0x2a864591,
+                 0x2baa8d1b,0x6c1075ee,0x3056a0c1,0x0d25065c,0xb03a442e,0x0ec6e0e1,0x698db3b4,0xc98a0be3,
+                 0x278e9649,0xf1f9532e,0x0d392dfd,0x3a0342b8,0x971f21e1,0xb0a74414,0xba3348cc,0x5be7120c,
+                 0x37632d8d,0xf359f8d9,0xb992f2ee,0x60b6f470,0xfe3f11de,0x54cda541,0xedad891c,0xe6279cfc,
+                 0xd3e7e6f1,0x618b166f,0xd2c1d058,0x48fd2c5f,0x6fb2299f,0x523f357a,0x63276239,0x3a835315,
+                 0x6cccd02a,0xcf081625,0xa75ebb56,0xe1636978,0x8d273ccd,0xe9662928,0x1b949d04,0xc50901b7,
+                 0x1c65614e,0x6c6c7bd3,0x27a140a4,0x5e1d006c,0x3f27b9ac,0x9aa53fd6,0x2a80f00b,0xb25bfe23,
+                 0x5bdd2f67,0x1126905b,0x2040222b,0x6cbcf7cc,0xd769c2b5,0x3113ec01,0x640e3d33,0x8abbd602,
+                 0x547adf0b,0xa38209cf,0x746ce767,0x7afa1c52,0x07560608,0x5cbfe4e8,0xae88dd87,0xaaaf9b04}
+            }
+};
+
+    return state;
+}

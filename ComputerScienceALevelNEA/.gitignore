@@ -1,0 +1,9 @@
+Website/webApp/pythonFiles/__pycache__/*
+Website/webApp/static/videos/*
+**/*.pyc
+**/__pycache__/*
+**/*.so
+**/*.db
+**/*.out
+Streaming/videos/*
+**/stripeKeys.txt

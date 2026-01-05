@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<html>
+    <head>
+        {% block header %}
+        <meta charset = "UTF-8">
+
+        <title>{% block title %}{% endblock %}London Petrophysical Society</title>
+        <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/style.css') }}">
+        <script src = "{{ url_for('static', filename = 'scripts/popup.js')}}"></script>
+        {% endblock %}
+    </head>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class = "popup" id = "popup"> 
+                    <p>{{ message }}</p>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <body>
+        <ul class = "navBar" type = "navBar">
+            <img class = "logo" src = "{{url_for('static', filename = 'images/LPS_Logo_TransparentBG.png')}}" href = "{{ url_for('index') }}">
+
+            {% if 'username' in session %}
+                <li><a href = "{{ url_for('signOut') }}">Sign Out</a></li>
+                {% else %}
+                <li><a href = "{{ url_for('signIn') }}">Sign In</a></li>
+                <li><a href = "{{ url_for('register') }}">Register</a></li>
+            {% endif %}
+
+            <li><a href = "{{ url_for('index') }}">Home</a></li>
+        </ul>
+
+        {% block body %}
+        {% endblock%}
+    </body>
+</html>

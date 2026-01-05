@@ -1,0 +1,3 @@
+cd ../cFiles; gcc -fPIC -shared -o libbcrypt.so bcrypt.c; cd ../pythonFiles; py bcrypt.py
+
+cd ../cFiles; gcc -fPIC -shared -I"C:\Users\25888\AppData\Local\Programs\Python\Python312\include" -o libqueue.so queue.c; cd ../pythonFiles; py queue.py

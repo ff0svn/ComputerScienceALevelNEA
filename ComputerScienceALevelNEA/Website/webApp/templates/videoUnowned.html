@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+
+{% block title %}{{video[1]}} - {% endblock %}
+
+{% block header%} 
+{{ super() }}
+
+<script>
+    var videoID = '{{video[0]}}';
+</script>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script src="{{ url_for('static', filename='scripts/payment.js') }}"></script>
+
+{% endblock %}
+
+{% block body%}
+
+<div class = "mainBlock2">
+    <div class = "imgContainer">
+
+        <div class = "formContainer">
+
+            <h1 class = "heading">{{video[1]}}</h1>
+            
+            <div class = "buffer">
+                <button class="submitButton" id="submitButton">Purchase Video</button>
+            </div>
+
+        </div>
+        
+    </div>
+</div>
+
+{% endblock %}

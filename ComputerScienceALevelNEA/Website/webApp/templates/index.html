@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+
+{% block body %}
+
+
+<div class = "mainBlock">
+    <div class="siteTitle">
+        <h1>
+            London Petrophysics Society
+        </h1>
+        <h2>
+            Video Distribution
+        </h2>
+    </div>
+
+    <div class = "imgContainer">
+        <form method = "POST" autocomplete="off" class = "searchForm">
+            <input type = "text" name = "input" placeholder="Enter Search Query Here" class = "nameBar">
+            <input type = "text" name = "tag" placeholder="Enter Sorting Tag Here" class = "tagBar">
+            <fieldset class="sortingStyle">
+                <legend>Sorting Style</legend>
+
+                <div>
+                    <input type="radio" id="name" value = "name"  name="sortStyle" class = "radioButton"/>
+                    <label for="tagChoice" class="radioLabel">Name</label>
+                </div>
+
+                <div>
+                    <input type="radio" id="tag" value = "tag" name="sortStyle" class = "radioButton"/>
+                    <label for="tagChoice" class="radioLabel">Tags</label>
+                </div>
+
+                <div>
+                    <input type="radio" id="speaker" value = "speaker" name="sortStyle" class = "radioButton"/>
+                    <label for="tagChoice" class="radioLabel">Speaker Name</label>
+                </div>
+
+                <div>
+                    <input type="radio" id="date" value = "date" name="sortStyle" class = "radioButton"/>
+                    <label for="tagChoice" class="radioLabel">Date</label>
+                </div>
+            </fieldset>
+
+            <input class="searchButton" type="submit" id="submitButton" />
+        </form>
+    </div>
+</div>
+
+{% endblock %}

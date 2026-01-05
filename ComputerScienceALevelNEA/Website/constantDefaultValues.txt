@@ -1,0 +1,7 @@
+bcryptCurrCost 10
+URLSize 200
+emailAddress LPStestsendermail@gmail.com
+emailPassword bttexrzlmzyhaiop
+siteURL http://127.0.0.1:5000
+emailResetTime 1800
+searchDepth 5000

@@ -1,0 +1,333 @@
+html {
+    background-color: #F5F5F7;
+}
+
+h1 {
+    text-align: center;
+    padding: 0% 0%;
+}
+
+form {
+    width: 50%;
+    text-align: center;
+
+    margin: 0% auto;
+    margin-top: 1.25%;
+}
+
+table {
+    text-align: center;
+    align-self: center;
+
+    margin-left: auto;
+    margin-right: auto;
+
+    width: 25%;
+}
+
+input {
+    /* width: 75%; */
+    height: 4.5%;
+    border-radius: 0.5rem;
+    margin: 0.1rem;
+
+    background-color: rgba(245, 255, 255);
+
+    text-align: center;
+    font-size: x-large;
+    font-family: 'Times New Roman', Times, serif;
+}
+
+button {
+    /* width: 75%; */
+    height: 4.5%;
+    border-radius: 0.5rem;
+    margin: 0.1rem;
+
+    background-color: rgba(245, 255, 255);
+
+    text-align: center;
+    font-size: x-large;
+    font-family: 'Times New Roman', Times, serif;
+
+    align-self: center;
+    margin-left: 2.5vw;
+    margin-right: 2.5vw;
+    margin-bottom: 2.5vh;
+    margin-top: 1vh;
+}
+
+.navBar {
+    font-size: 2.5vw;
+    height: 10vh;
+}
+
+.logo {
+    height: 100%;
+}
+
+.mainBlock {
+    margin: 0% auto;
+    margin-top: 1.25%;
+    margin-bottom: 2%;
+    
+    background-image: url("../images/LPS_Hero_Image.jpg");
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-size: cover;
+
+    max-width: 90vw;
+
+    /* border: 10px solid black; */
+}
+
+.mainBlock2 {
+    margin: 0% auto;
+    margin-top: 1.25%;
+    margin-bottom: 2%;
+    
+    background-image: url("../images/LPS_Header_Image.jpg");
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-size: cover;
+
+    max-width: 90vw;
+
+    /* border: 10px solid black; */
+}
+
+.imgContainer {
+    min-height: 80vh;
+}
+
+.siteTitle {
+    position: absolute;
+
+    top: 15vh;
+    right: 8vw;
+
+    text-align: right;
+
+    color: white;
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+}
+
+.searchForm {
+    position: absolute;
+
+    top: 20vh;
+    left: 2.5vw;
+
+    text-align: center;
+}
+
+.nameBar{
+    position: absolute;
+    margin: auto;
+
+    height: 5.5vh;
+    width: 30vw;
+}
+
+.tagBar{
+    position: relative;
+    margin: auto;
+    
+    height: 5.5vh;
+    width: 30vw;
+
+    top: 10vh;
+}
+
+.sortingStyle {
+    position: relative;
+    margin: auto;
+
+    min-width: 28vw;
+    top: 15vh;
+
+    background-color: white;
+    font-size: 1.5vw;
+}
+
+
+legend {
+    background-color: white;
+    color: black;
+}
+
+.searchButton {
+    position: relative;
+    margin: auto;
+    
+    height: 5.5vh;
+    width: 30vw;
+    
+    top: 20vh;
+    
+    background-color: #73B4E9;
+    color: white;
+}
+
+.searchResults { 
+    position: absolute;
+
+    top: 20vh;
+    right: 9vw;
+
+    text-align: center;
+
+    background-color: white;
+    border-radius: 0.4rem;
+}
+
+.searchTable {
+    width: 40vw;
+    font-size: 1.25vw;
+}
+
+.searchTitle {
+    font-size: 2.5vw;
+}
+
+.formContainer { 
+    position: fixed;
+    inset: 0px;
+    margin: auto;
+
+    width: 35vw;
+    height: fit-content;
+
+    background-color: white;
+    border-radius: 0.4rem;
+}
+
+.form {
+    width: 80%;
+    height: fit-content;
+    align-self: center;
+}
+
+.formHeading {
+    text-align: left;
+    margin-top: 5%;
+    margin-bottom: 1%;
+}
+
+.formText{
+    height: 5.5vh;
+    width: 100%;
+}
+
+.linkText {
+    text-align: right;
+    margin-bottom: 4%;
+}
+
+.submitButton {   
+    height: 5.5vh;
+    width: 100%;
+    margin-bottom: 5%;
+    margin-top: 2%;
+    
+    background-color: #73B4E9;
+    color: white;
+}
+
+.videoContainer { 
+    position: fixed;
+    inset: 0px;
+    margin: auto;
+
+    width: fit-content;
+    height: fit-content;
+
+    background-color: white;
+    border-radius: 0.4rem;
+}
+
+.buffer {
+    width: 80%;
+    height: fit-content;
+    align-self: center;
+    text-align: center;
+}
+
+.videoDisplay {
+    align-self: center;
+    margin-left: 2.5vw;
+    margin-right: 2.5vw;
+    margin-bottom: 2.5vh;
+    margin-top: 1vh;
+}
+
+
+.accountButton {
+    float: right;
+}
+
+.sortingStyle {
+    text-align: left;
+    max-width: 20%;
+}
+
+.radioButton {
+    margin: 0.01rem;
+}
+
+p, th, td {
+    color: #000000;
+    text-align: center;
+}
+
+.popup {
+    display: block;
+    position: fixed;
+    padding: 10px;
+    width: 280px;
+    left: 50%;
+    margin-left: -150px;
+    height: 180px;
+    top: 50%;
+    margin-top: -100px;
+    background: #FFF;
+    z-index: 20;
+}
+
+#popup1 {
+    -webkit-box-shadow:  0px 0px 0px 9999px rgba(0, 0, 0, 0.5);
+    box-shadow:  0px 0px 0px 9999px rgba(0, 0, 0, 0.5);
+}
+
+ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: hsl(0, 0%, 100%);
+}
+
+ul li {
+  float: right;
+  
+  height: 100%;
+}
+
+ul li a {
+    font-family:system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    font-weight: lighter;
+  display: block;
+  color: black;
+  text-align: center;
+  padding: 14px 16px;
+  text-decoration: none;
+
+  width: 10vw;
+  height: 100%;
+}
+
+ul li a:hover {
+  background-color: #dddddd;
+
+  height: 100%;
+}

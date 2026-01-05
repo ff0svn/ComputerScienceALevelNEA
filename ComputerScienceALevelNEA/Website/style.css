@@ -1,0 +1,62 @@
+html {
+    background-color: azure;
+}
+
+h1 {
+    text-align: center;
+    padding: 5% 0%;
+}
+
+form {
+    width: 50%;
+    text-align: center;
+
+    margin: 0% auto;
+    margin-top: 1.25%;
+}
+
+table {
+    text-align: center;
+    align-self: center;
+
+    margin-left: auto;
+    margin-right: auto;
+
+    width: 25%;
+}
+
+input {
+    width: 75%;
+    height: 4.5%;
+    border-radius: 20px;
+
+    background-color: rgba(245, 255, 255);
+
+    text-align: center;
+    font-size: x-large;
+    font-family: 'Times New Roman', Times, serif;
+}
+
+.mainBlock {
+    width: 52.5%;
+    height: fit-content;
+    margin: 0% auto;
+
+    margin-top: 1.25%;
+    margin-bottom: 2%;
+
+    background-color: #7180ac40;
+    padding: 0px 20px 20px 20px;
+    border-radius: 10px;
+
+    /* border: 10px solid black; */
+}
+
+.accountButton {
+    float: right;
+}
+
+p, th, td {
+    color: #000000;
+    text-align: center;
+}

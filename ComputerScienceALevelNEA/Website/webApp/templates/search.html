@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+
+{% block title %}Search - {% endblock %}
+
+{% block body %}
+
+<div class = "mainBlock">
+    <div class = "imgContainer">
+        <form method = "POST" autocomplete="off" class = "searchForm">
+            <input type = "text" name = "input" placeholder="Enter Search Query Here" class = "nameBar">
+            <input type = "text" name = "tag" placeholder="Enter Sorting Tag Here" class = "tagBar">
+            <fieldset class="sortingStyle">
+                <legend>Sorting Style</legend>
+
+                <div>
+                    <input type="radio" id="name" value = "name"  name="sortStyle" class = "radioButton"/>
+                    <label for="tagChoice" class="radioLabel">Name</label>
+                </div>
+
+                <div>
+                    <input type="radio" id="tag" value = "tag" name="sortStyle" class = "radioButton"/>
+                    <label for="tagChoice" class="radioLabel">Tags</label>
+                </div>
+
+                <div>
+                    <input type="radio" id="speaker" value = "speaker" name="sortStyle" class = "radioButton"/>
+                    <label for="tagChoice" class="radioLabel">Speaker Name</label>
+                </div>
+
+                <div>
+                    <input type="radio" id="date" value = "date" name="sortStyle" class = "radioButton"/>
+                    <label for="tagChoice" class="radioLabel">Date</label>
+                </div>
+            </fieldset>
+
+            <input class="searchButton" type="submit" id="submitButton" />
+        </form>
+    </div>
+
+    <div class = "searchResults">
+        <table class = "searchTable">
+            <tr>
+                <th class = "searchTitle">Title</th>
+                <th class = "searchTitle">Speaker</th>
+                <th class = "searchTitle">Date</th>
+                <th class = "searchTitle">Link</th>
+            </tr>
+
+            {%for item in results%}
+                <tr>
+                    <td>{{item[0]}}</td>
+                    <td>{{item[3]}}</td>
+                    <td>{{item[1]}}</td>
+                    <td><a href = "{{ 'video?videoID=' + item[2]|string}}">Link</a> to video</td>
+                </tr>
+            {%endfor%}
+        </table>
+    </div>
+</div>
+
+{% endblock %}
